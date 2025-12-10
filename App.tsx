@@ -83,10 +83,10 @@ const App = () => {
   const createVideoSource = () => {
 
     const manifestFormat = isDRM
-      ? 'm3u8'
-      : isIOS
+      ? isIOS
         ? 'm3u8'
-        : 'mpd';
+        : 'mpd'
+      : 'm3u8';
 
     return {
       type: manifestFormat,
