@@ -1,97 +1,178 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# TPStreams Integration with React Native Video
 
-# Getting Started
+This project demonstrates how to integrate live streams from **TPStreams** using `react-native-video` with DRM support (FairPlay for iOS and Widevine for Android).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+It serves as a reference implementation for clients wishing to use TPStreams in their own React Native applications.
 
-## Step 1: Start Metro
+## Prerequisites
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Before starting, ensure you have the following in your project:
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- **React Native** >= 0.70
+- **tpstreams credentials**: `ORG_ID`, `ASSET_ID`, and `ACCESS_TOKEN`.
 
-```sh
-# Using npm
-npm start
+## Step 1: Install Dependencies
 
-# OR using Yarn
-yarn start
+You need `react-native-video` for playback and `axios` to handle DRM license requests.
+
+```bash
+npm install react-native-video axios
+# or
+yarn add react-native-video axios
 ```
 
-## Step 2: Build and run your app
+### iOS Specific Setup
+For iOS, you need to install the native pods.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+cd ios && pod install && cd ..
 ```
 
-### iOS
+## Step 2: Implementation
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Follow these steps to configure the video player in your React component (e.g., `App.tsx`).
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### 1. Imports
 
-```sh
-bundle install
+Import the `Video` component, DRM types, and `axios`.
+
+```typescript
+import Video, { DRMType } from 'react-native-video';
+import axios from 'axios';
+import { Platform } from 'react-native';
 ```
 
-Then, and every time you update your native dependencies, run:
+### 2. Configuration Constants
 
-```sh
-bundle exec pod install
+Define the constants for your stream.
+
+```typescript
+const ORG_ID = 'your_org_id';
+const ASSET_ID = 'your_asset_id';
+const ACCESS_TOKEN = 'your_access_token';
+
+// Base URL for the stream
+const BASE_URL = `https://dlbdnoa93s0gw.cloudfront.net/live/${ORG_ID}/${ASSET_ID}/`;
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### 3. DRM Configuration Function
 
-```sh
-# Using npm
-npm run ios
+This is the most critical part. TPStreams uses DRM protection, so you must configure **FairPlay** for iOS and **Widevine** for Android.
 
-# OR using Yarn
-yarn ios
+You need to implement a custom `getLicense` function to fetch the license with the correct headers and format.
+
+```typescript
+const createDRMConfig = () => {
+  const isIOS = Platform.OS === 'ios';
+
+  if (isIOS) {
+    // iOS: FairPlay DRM
+    return {
+      type: DRMType.FAIRPLAY,
+      licenseServer: `https://app.tpstreams.com/api/v1/${ORG_ID}/assets/${ASSET_ID}/drm_license/?access_token=${ACCESS_TOKEN}&drm_type=fairplay`,
+      certificateUrl: 'https://static.testpress.in/static/fairplay.cer', // Standard certificate URL
+      getLicense: async (spcString: string, contentId: string, licenseUrl: string) => {
+        try {
+          // Fetch license from TPStreams
+          const response = await axios.post(
+            licenseUrl,
+            JSON.stringify({ spc: spcString, assetId: contentId }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              responseType: 'arraybuffer', // Important: response must be arraybuffer
+            }
+          );
+          // Convert binary response to base64
+          return btoa(String.fromCharCode(...new Uint8Array(response.data)));
+        } catch (error) {
+          console.error('FairPlay license error:', error);
+          throw error;
+        }
+      },
+    };
+  } else {
+    // Android: Widevine DRM
+    return {
+      type: DRMType.WIDEVINE,
+      licenseServer: `https://app.tpstreams.com/api/v1/${ORG_ID}/assets/${ASSET_ID}/drm_license/?access_token=${ACCESS_TOKEN}&drm_type=widevine`,
+      getLicense: async (spcString: string, contentId: string, licenseUrl: string) => {
+        try {
+          const response = await axios.post(
+            licenseUrl,
+            JSON.stringify({ spc: spcString, assetId: contentId }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              responseType: 'arraybuffer',
+            }
+          );
+          return btoa(String.fromCharCode(...new Uint8Array(response.data)));
+        } catch (error) {
+          console.error('Widevine license error:', error);
+          throw error;
+        }
+      },
+    };
+  }
+};
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+### 4. Create Video Source
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+Construct the source object. Note the file extensions: `.m3u8` for iOS/FairPlay and `.mpd` for Android/Widevine.
 
-## Step 3: Modify your app
+```typescript
+const createVideoSource = () => {
+  const isIOS = Platform.OS === 'ios';
+  
+  // Choose manifest format based on platform
+  const manifestFormat = isIOS ? 'm3u8' : 'mpd'; 
 
-Now that you have successfully run the app, let's make changes!
+  return {
+    uri: `${BASE_URL}video.${manifestFormat}`,
+    type: manifestFormat,
+    drm: createDRMConfig(), // Attach the DRM config created above
+  };
+};
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+### 5. Render the Video Component
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+Component usage example:
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+```tsx
+const MyVideoPlayer = () => {
+  const source = createVideoSource();
 
-## Congratulations! :tada:
+  return (
+    <Video
+      source={source}
+      style={{ width: '100%', height: 300, backgroundColor: 'black' }}
+      controls={true}
+      resizeMode="contain"
+      onError={(e) => console.log('Video Error:', e)}
+      onLoad={() => console.log('Video Loaded')}
+    />
+  );
+};
+```
 
-You've successfully run and modified your React Native App. :partying_face:
+## Troubleshooting
 
-### Now what?
+- **License Errors**: Ensure your `ACCESS_TOKEN` is valid and the `ORG_ID` / `ASSET_ID` are correct.
+- **Dependencies**: Ensure `react-native-video` version 6.x is installed, as DRM props have changed from version 5.x.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Running this Sample App
 
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+1.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+2.  **iOS**:
+    ```bash
+    cd ios && pod install && cd ..
+    npm run ios
+    ```
+3.  **Android**:
+    ```bash
+    npm run android
+    ```
