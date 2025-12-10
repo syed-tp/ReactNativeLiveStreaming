@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Video, { DRMType, ReactVideoSourceProperties } from 'react-native-video';
 import axios from 'axios';
+import ChatComponent from './ChatComponent';
 
 type SourceType = ReactVideoSourceProperties | null;
 
@@ -23,8 +24,9 @@ const App = () => {
   const isDRM = false;
 
   const ORG_ID = '9q94nm';
-  const ASSET_ID = '55GAG26sCSg';
-  const ACCESS_TOKEN = 'cb898b77-1965-41e4-9cba-d91256b289a8';
+  const ASSET_ID = '6MyAAbmyfdm';
+  const ACCESS_TOKEN = 'd3578ca8-3b17-4590-ae40-f585ba8341c3';
+  const CHAT_ROOM_ID = 'ef0aefe1-3aa1-4887-9362-a81781e557aa'; //chat room id can be obtained from the Asset detail API
   const BASE_URL = `https://dlbdnoa93s0gw.cloudfront.net/live/${ORG_ID}/${ASSET_ID}/`;
 
   const createDRMConfig = () => {
@@ -138,6 +140,8 @@ const App = () => {
         />
       )}
 
+      {source && <ChatComponent roomId={CHAT_ROOM_ID} />}
+
       <Button
         title={source ? 'Stop Video' : 'Play Video'}
         onPress={handlePlayStopVideo}
@@ -153,7 +157,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     padding: 20,
-    paddingTop: 100,
+    paddingTop: 60,
     backgroundColor: 'black',
   },
   title: {
@@ -164,13 +168,13 @@ const styles = StyleSheet.create({
   },
   platformInfo: {
     fontSize: 14,
-    marginBottom: 20,
+    marginBottom: 10,
     color: '#ccc',
     textAlign: 'center',
   },
   video: {
     width: '100%',
     height: 200,
-    marginBottom: 20
+    marginBottom: 10
   },
 });

@@ -156,12 +156,86 @@ const MyVideoPlayer = () => {
 };
 ```
 
+## Step 3: Add Live Chat
+
+You can also integrate the TPStreams Live Chat SDK using a WebView.
+
+### 1. Install WebView
+```bash
+npm install react-native-webview
+cd ios && pod install && cd ..
+```
+
+### 2. Create Chat Component
+Create a reusable `ChatComponent.tsx` that loads the chat SDK via HTML.
+
+```tsx
+import React from 'react';
+import { View, ActivityIndicator } from 'react-native';
+import { WebView } from 'react-native-webview';
+
+const ChatComponent = ({ roomId }) => {
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <link rel="stylesheet" href="https://static.tpstreams.com/static/css/live_chat_v1.css">
+      <script src="https://static.tpstreams.com/static/js/live_chat_v1.umd.cjs"></script>
+      <style>body { margin: 0; background-color: #000; }</style>
+    </head>
+    <body>
+      <div id="app"></div>
+      <script>
+        const config = {
+          username: "Guest",
+          roomId: "${roomId}",
+          title: "Chat"
+        };
+        function init() {
+          if (window.TPStreamsChat) {
+            new TPStreamsChat.load(document.querySelector("#app"), config);
+          } else {
+            setTimeout(init, 100);
+          }
+        }
+        init();
+      </script>
+    </body>
+    </html>
+  `;
+
+  return (
+    <View style={{ height: 400, width: '100%' }}>
+      <WebView
+        source={{ html: htmlContent }}
+        startInLoadingState={true}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+      />
+    </View>
+  );
+};
+
+export default ChatComponent;
+```
+
+### 3. Add to App
+
+Import and use it below your video player:
+
+```tsx
+import ChatComponent from './ChatComponent';
+
+// ... inside your component
+const CHAT_ROOM_ID = 'your_chat_room_id';
+
+{source && <ChatComponent roomId={CHAT_ROOM_ID} />}
+```
+
 ## Troubleshooting
 
 - **License Errors**: Ensure your `ACCESS_TOKEN` is valid and the `ORG_ID` / `ASSET_ID` are correct.
-- **Dependencies**: Ensure `react-native-video` version 6.x is installed, as DRM props have changed from version 5.x.
-
-## Running this Sample App
 
 1.  **Install dependencies**:
     ```bash
